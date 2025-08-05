@@ -19,7 +19,11 @@ web_scraper_legal/
 │       ├── api_client.py           # Async HTTP client for Dawson API
 │       ├── downloader.py           # Parallel download manager
 │       ├── scraper.py              # Main orchestration logic
-│       └── utils.py                # Utility functions
+│       ├── utils.py                # Utility functions
+│       ├── pdf_pipeline.py         # IBM Docling PDF processing
+│       ├── batch_pdf_processor.py  # Bulk PDF conversion system
+│       ├── rag_system.py           # LlamaIndex RAG implementation
+│       └── cli_rag.py              # CLI for PDF processing and search
 │
 ├── data/                           # Data storage directory
 │   ├── json/                       # Monthly JSON metadata files
@@ -27,8 +31,16 @@ web_scraper_legal/
 │   ├── documents/                  # Downloaded PDF documents
 │   │   └── YYYY-MM/               # Organized by month
 │   │       └── *.pdf              # Individual court opinions
+│   ├── markdown_documents/         # Converted markdown files
+│   │   └── YYYY-MM/               # Organized by month
+│   │       └── *.md               # Converted documents with metadata
+│   ├── vector_store/              # ChromaDB vector database
+│   │   ├── chroma.sqlite3         # Vector index storage
+│   │   └── metadata/              # Document metadata
+│   ├── processing_stats/          # PDF processing tracking
+│   │   └── processing.db          # Processing status database
 │   └── db/                        # Database files
-│       └── dawson_scraper.db      # SQLite database
+│       └── dawson_scraper.db      # Main SQLite database
 │
 ├── logs/                           # Application logs
 │   ├── dawson_scraper.log         # Main application log
@@ -67,13 +79,29 @@ web_scraper_legal/
 
 - **JSON files**: `opinions_YYYY-MM-DD_to_YYYY-MM-DD.json` - Monthly opinion metadata
 - **PDF files**: `{docket_number}_{document_id}.pdf` - Individual court documents
+- **Markdown files**: `{docket_number}_{document_id}.md` - Converted documents with metadata
 - **Log files**: Component-specific logs with descriptive names
-- **Database**: Single SQLite database for all state management
+- **Databases**: Multiple SQLite databases for different purposes
+  - `dawson_scraper.db` - Main scraping operations
+  - `processing.db` - PDF processing status
+  - `chroma.sqlite3` - Vector index storage
 
 ## Key Directories
 
 - **Source Code**: All Python modules in `dawson_scraper/src/`
-- **Data Storage**: Organized under `data/` with separate folders for JSON, PDFs, and database
+- **Data Storage**: Organized under `data/` with separate folders for:
+  - Raw JSON metadata
+  - Original PDF documents
+  - Converted markdown documents
+  - Vector embeddings and search index
+  - Processing status databases
 - **Documentation**: Technical specs in `specs/` folder
 - **Configuration**: Environment settings in root `.env` file
 - **Virtual Environment**: Dependencies isolated in `.venv/`
+
+## Data Flow Structure
+
+1. **Scraping Phase**: `run.py` downloads PDFs to `data/documents/YYYY-MM/`
+2. **Processing Phase**: `cli_rag.py process-pdfs` converts PDFs to `data/markdown_documents/YYYY-MM/`
+3. **Indexing Phase**: `cli_rag.py build-index` creates vector embeddings in `data/vector_store/`
+4. **Search Phase**: `cli_rag.py search` queries the vector index for relevant documents

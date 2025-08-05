@@ -97,6 +97,8 @@ class TaxCourtRAGSystem:
         Settings.embed_model = self.embed_model
         Settings.chunk_size = self.chunk_size
         Settings.chunk_overlap = self.chunk_overlap
+        # Disable LLM for pure vector search
+        Settings.llm = None
     
     def _extract_metadata_from_path(self, file_path: Path) -> Dict[str, Any]:
         """Extract metadata from file path and content.
@@ -222,10 +224,7 @@ class TaxCourtRAGSystem:
         self.logger.info(f"Building index with {len(documents)} documents")
         
         # Create node parser for markdown
-        node_parser = MarkdownNodeParser.from_defaults(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap
-        )
+        node_parser = MarkdownNodeParser.from_defaults()
         
         # Create index
         self.index = VectorStoreIndex.from_documents(
@@ -267,20 +266,21 @@ class TaxCourtRAGSystem:
         
         self.logger.info(f"Loading index from {self.vector_store_dir}")
         
-        # Create storage context
+        # Create storage context and load from disk
+        from llama_index.core import load_index_from_storage
         storage_context = StorageContext.from_defaults(
             persist_dir=str(self.vector_store_dir)
         )
         
         # Load index
-        self.index = VectorStoreIndex.from_storage_context(storage_context)
+        self.index = load_index_from_storage(storage_context)
         self.logger.info("Index loaded successfully")
     
     def create_query_engine(
         self,
         similarity_top_k: Optional[int] = None,
-        similarity_cutoff: float = 0.7,
-        response_mode: str = "compact"
+        similarity_cutoff: float = 0.3,  # Lower threshold for better results
+        response_mode: str = "no_text"  # Just return nodes, no synthesis
     ) -> RetrieverQueryEngine:
         """Create query engine for searching.
         
@@ -304,7 +304,7 @@ class TaxCourtRAGSystem:
             similarity_top_k=similarity_top_k
         )
         
-        # Create response synthesizer
+        # Create response synthesizer  
         response_synthesizer = get_response_synthesizer(
             response_mode=response_mode
         )

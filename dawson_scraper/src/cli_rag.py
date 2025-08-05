@@ -24,6 +24,7 @@ def cli(ctx, verbose):
 @cli.command()
 @click.option('--input-dir', default='data/documents', help='Input directory with PDFs')
 @click.option('--output-dir', default='data/markdown_documents', help='Output directory for markdown')
+@click.option('--json-output-dir', default='data/json_documents', help='Output directory for JSON documents')
 @click.option('--workers', default=4, help='Number of parallel workers')
 @click.option('--skip-existing/--no-skip', default=True, help='Skip already processed files')
 @click.option('--filter', 'pdf_filter', help='Filter pattern (e.g., "2020-01/*.pdf")')
@@ -31,17 +32,20 @@ def cli(ctx, verbose):
 @click.option('--enable-tables/--no-tables', default=True, help='Enable table structure recognition')
 @click.option('--enable-vlm', is_flag=True, help='Enable Vision-Language Model (slower but more accurate)')
 @click.pass_context
-def process_pdfs(ctx, input_dir, output_dir, workers, skip_existing, pdf_filter, 
+def process_pdfs(ctx, input_dir, output_dir, json_output_dir, workers, skip_existing, pdf_filter, 
                  enable_ocr, enable_tables, enable_vlm):
-    """Process all PDFs to markdown format."""
+    """Process all PDFs to markdown and JSON formats."""
     logger = ctx.obj['logger']
     
-    click.echo(f"Processing PDFs from {input_dir} to {output_dir}")
+    click.echo(f"Processing PDFs from {input_dir}")
+    click.echo(f"  Markdown output: {output_dir}")
+    click.echo(f"  JSON output: {json_output_dir}")
     click.echo(f"Workers: {workers}, OCR: {enable_ocr}, Tables: {enable_tables}, VLM: {enable_vlm}")
     
     processor = BatchPDFProcessor(
         input_dir=input_dir,
         output_dir=output_dir,
+        json_output_dir=json_output_dir,
         max_workers=workers,
         enable_ocr=enable_ocr,
         enable_table_structure=enable_tables,

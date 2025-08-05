@@ -74,6 +74,27 @@ dependencies = [
     "torchvision>=0.15.0",
     "torchaudio>=2.0.0",
     "bitsandbytes>=0.41.0",
+    
+    # Legal RAG System Dependencies
+    # Milvus vector database
+    "pymilvus>=2.4.0",
+    "pymilvus[model]>=2.4.0",
+    
+    # LlamaIndex extensions for RAG
+    "llama-index-vector-stores-milvus>=0.1.0",
+    "llama-index-llms-gemini>=0.1.0",
+    "llama-index-embeddings-gemini>=0.1.0",
+    "llama-index-readers-docling>=0.1.0",
+    "llama-index-node-parser-docling>=0.1.0",
+    
+    # Google Gemini
+    "google-generativeai>=0.3.0",
+    
+    # Additional embedding models
+    "sentence-transformers>=2.3.0",
+    
+    # BM25 for sparse retrieval
+    "rank-bm25>=0.2.2",
 ]
 
 [project.optional-dependencies]
@@ -90,6 +111,7 @@ dev = [
 [project.scripts]
 dawson = "run:main"
 dawson-rag = "dawson_scraper.src.cli_rag:main"
+legal-rag = "legal_rag.src.cli:main"
 
 [project.urls]
 homepage = "https://github.com/yourusername/dawson-court-scraper"

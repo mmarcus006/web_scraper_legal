@@ -17,12 +17,113 @@ from sqlalchemy.orm import sessionmaker
 
 from .pdf_pipeline import (
     create_docling_converter,
-    convert_pdf_to_markdown,
     save_markdown_with_metadata,
     setup_logging
 )
 
 Base = declarative_base()
+
+
+def process_pdf_standalone(
+    pdf_path: str,
+    markdown_output_dir: str,
+    json_output_dir: str,
+    input_dir: str,
+    enable_ocr: bool = True,
+    enable_table_structure: bool = True,
+    enable_vlm: bool = False
+) -> Dict[str, Any]:
+    """Standalone function to process a single PDF (for multiprocessing).
+    
+    Args:
+        pdf_path: Path to PDF file
+        markdown_output_dir: Directory for markdown output
+        json_output_dir: Directory for JSON output
+        input_dir: Base input directory
+        enable_ocr: Enable OCR
+        enable_table_structure: Enable table structure recognition
+        enable_vlm: Enable Vision-Language Model
+    
+    Returns:
+        Processing result dictionary
+    """
+    logger = setup_logging("INFO")
+    pdf_path = Path(pdf_path)
+    input_dir = Path(input_dir)
+    markdown_output_dir = Path(markdown_output_dir)
+    json_output_dir = Path(json_output_dir)
+    
+    try:
+        # Calculate relative path from input directory
+        relative_path = pdf_path.relative_to(input_dir)
+        
+        # Create corresponding paths in output directories
+        markdown_path = markdown_output_dir / relative_path.parent / pdf_path.stem
+        json_path = json_output_dir / relative_path.parent / pdf_path.stem
+        
+        # Create converter
+        converter = create_docling_converter(
+            enable_ocr=enable_ocr,
+            enable_table_structure=enable_table_structure,
+            enable_vlm=enable_vlm
+        )
+        
+        # Convert PDF using Docling
+        start_time = time.time()
+        result = converter.convert(str(pdf_path))
+        processing_time = time.time() - start_time
+        
+        # Export to markdown
+        markdown_content = result.document.export_to_markdown()
+        
+        # Create metadata
+        metadata = {
+            "source_file": str(pdf_path),
+            "pages": len(result.document.pages) if hasattr(result.document, 'pages') else 0,
+            "processing_time": processing_time,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Save markdown
+        save_markdown_with_metadata(
+            markdown_content, metadata, markdown_path, logger
+        )
+        
+        # Export to Docling's native JSON format
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        docling_json = result.document.export_to_dict()
+        
+        # Add processing metadata
+        docling_json['_processing_info'] = {
+            "source_pdf": str(pdf_path),
+            "processing_time": processing_time,
+            "processed_at": datetime.now().isoformat(),
+            "ocr_enabled": enable_ocr,
+            "table_structure_enabled": enable_table_structure,
+            "vlm_enabled": enable_vlm
+        }
+        
+        json_file = json_path.with_suffix('.json')
+        with open(json_file, 'w', encoding='utf-8') as f:
+            json.dump(docling_json, f, indent=2, ensure_ascii=False, default=str)
+        logger.info(f"Saved Docling JSON: {json_file}")
+        
+        return {
+            "status": "success",
+            "pdf_path": str(pdf_path),
+            "markdown_path": str(markdown_path),
+            "json_path": str(json_path),
+            "pages": metadata.get("pages", 0),
+            "processing_time": processing_time
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to process {pdf_path}: {str(e)}")
+        return {
+            "status": "error",
+            "pdf_path": str(pdf_path),
+            "error": str(e)
+        }
 
 
 class ProcessingRecord(Base):
@@ -47,6 +148,7 @@ class BatchPDFProcessor:
         self,
         input_dir: str = "data/documents",
         output_dir: str = "data/markdown_documents",
+        json_output_dir: str = "data/json_documents",
         db_path: str = "data/processing_stats/processing.db",
         max_workers: int = 4,
         enable_ocr: bool = True,
@@ -59,6 +161,7 @@ class BatchPDFProcessor:
         Args:
             input_dir: Directory containing PDF files
             output_dir: Directory for markdown output
+            json_output_dir: Directory for JSON document output
             db_path: Path to SQLite database for tracking
             max_workers: Maximum parallel workers
             enable_ocr: Enable OCR for scanned documents
@@ -67,6 +170,7 @@ class BatchPDFProcessor:
         """
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
+        self.json_output_dir = Path(json_output_dir)
         self.db_path = Path(db_path)
         self.max_workers = max_workers
         self.enable_ocr = enable_ocr
@@ -92,22 +196,23 @@ class BatchPDFProcessor:
         self.logger.info(f"Found {len(pdf_files)} PDF files in {self.input_dir}")
         return pdf_files
     
-    def get_output_path(self, pdf_path: Path) -> Path:
-        """Get markdown output path for a PDF file.
+    def get_output_paths(self, pdf_path: Path) -> Tuple[Path, Path]:
+        """Get markdown and JSON output paths for a PDF file.
         
         Args:
             pdf_path: Path to PDF file
         
         Returns:
-            Path for markdown output
+            Tuple of (markdown_path, json_path)
         """
         # Calculate relative path from input directory
         relative_path = pdf_path.relative_to(self.input_dir)
         
-        # Create corresponding path in output directory
-        output_path = self.output_dir / relative_path.parent / pdf_path.stem
+        # Create corresponding paths in output directories
+        markdown_path = self.output_dir / relative_path.parent / pdf_path.stem
+        json_path = self.json_output_dir / relative_path.parent / pdf_path.stem
         
-        return output_path
+        return markdown_path, json_path
     
     def should_process_pdf(self, pdf_path: Path) -> bool:
         """Check if PDF needs processing.
@@ -126,16 +231,18 @@ class BatchPDFProcessor:
             ).first()
             
             if record and record.status == "completed":
-                # Check if markdown file exists
-                output_path = self.get_output_path(pdf_path)
-                markdown_path = output_path.with_suffix('.md')
+                # Check if both markdown and JSON files exist
+                markdown_path, json_path = self.get_output_paths(pdf_path)
+                markdown_file = markdown_path.with_suffix('.md')
+                json_file = json_path.with_suffix('.json')
                 
-                if markdown_path.exists():
-                    # Check if PDF is newer than markdown
+                if markdown_file.exists() and json_file.exists():
+                    # Check if PDF is newer than output files
                     pdf_mtime = pdf_path.stat().st_mtime
-                    md_mtime = markdown_path.stat().st_mtime
+                    md_mtime = markdown_file.stat().st_mtime
+                    json_mtime = json_file.stat().st_mtime
                     
-                    if pdf_mtime <= md_mtime:
+                    if pdf_mtime <= md_mtime and pdf_mtime <= json_mtime:
                         return False  # Skip, already processed
             
             return True
@@ -201,11 +308,16 @@ class BatchPDFProcessor:
             Processing result dictionary
         """
         try:
+            # Reinitialize database connection in worker process
+            if not hasattr(self, 'SessionLocal') or self.SessionLocal is None:
+                self.engine = create_engine(f"sqlite:///{self.db_path}")
+                self.SessionLocal = sessionmaker(bind=self.engine)
+            
             # Update status to processing
             self.update_processing_record(pdf_path, "processing")
             
-            # Get output path
-            output_path = self.get_output_path(pdf_path)
+            # Get output paths for both markdown and JSON
+            markdown_path, json_path = self.get_output_paths(pdf_path)
             
             # Create converter for this process
             converter = create_docling_converter(
@@ -214,23 +326,53 @@ class BatchPDFProcessor:
                 enable_vlm=self.enable_vlm
             )
             
-            # Convert PDF
+            # Convert PDF using Docling
             start_time = time.time()
-            markdown_content, metadata = convert_pdf_to_markdown(
-                pdf_path, converter, self.logger
-            )
+            
+            # Get the conversion result directly
+            result = converter.convert(str(pdf_path))
             processing_time = time.time() - start_time
             
-            # Save markdown and metadata
+            # Export to markdown for markdown_documents directory
+            markdown_content = result.document.export_to_markdown()
+            
+            # Create metadata for backward compatibility
+            metadata = {
+                "source_file": str(pdf_path),
+                "pages": len(result.document.pages) if hasattr(result.document, 'pages') else 0,
+                "processing_time": processing_time,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Save markdown and metadata to markdown_documents directory
             save_markdown_with_metadata(
-                markdown_content, metadata, output_path, self.logger
+                markdown_content, metadata, markdown_path, self.logger
             )
+            
+            # Export to Docling's native JSON format for json_documents directory
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            docling_json = result.document.export_to_dict()
+            
+            # Add processing metadata to the Docling JSON
+            docling_json['_processing_info'] = {
+                "source_pdf": str(pdf_path),
+                "processing_time": processing_time,
+                "processed_at": datetime.now().isoformat(),
+                "ocr_enabled": self.enable_ocr,
+                "table_structure_enabled": self.enable_table_structure,
+                "vlm_enabled": self.enable_vlm
+            }
+            
+            json_file = json_path.with_suffix('.json')
+            with open(json_file, 'w', encoding='utf-8') as f:
+                json.dump(docling_json, f, indent=2, ensure_ascii=False, default=str)
+            self.logger.info(f"Saved Docling JSON document: {json_file}")
             
             # Update database
             self.update_processing_record(
                 pdf_path,
                 "completed",
-                markdown_path=str(output_path.with_suffix('.md')),
+                markdown_path=str(markdown_path.with_suffix('.md')),
                 pages=metadata.get("pages", 0),
                 processing_time=processing_time
             )
@@ -238,7 +380,8 @@ class BatchPDFProcessor:
             return {
                 "status": "success",
                 "pdf_path": str(pdf_path),
-                "output_path": str(output_path),
+                "markdown_path": str(markdown_path),
+                "json_path": str(json_path),
                 "pages": metadata.get("pages", 0),
                 "processing_time": processing_time
             }
@@ -318,9 +461,18 @@ class BatchPDFProcessor:
         total_time = 0
         
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all tasks
+            # Submit all tasks using standalone function
             future_to_pdf = {
-                executor.submit(self.process_single_pdf_wrapper, pdf): pdf
+                executor.submit(
+                    process_pdf_standalone,
+                    str(pdf),
+                    str(self.output_dir),
+                    str(self.json_output_dir),
+                    str(self.input_dir),
+                    self.enable_ocr,
+                    self.enable_table_structure,
+                    self.enable_vlm
+                ): pdf
                 for pdf in pdfs_to_process
             }
             
@@ -337,8 +489,23 @@ class BatchPDFProcessor:
                             successful += 1
                             total_pages += result.get("pages", 0)
                             total_time += result.get("processing_time", 0)
+                            
+                            # Update database record
+                            self.update_processing_record(
+                                Path(result["pdf_path"]),
+                                "completed",
+                                markdown_path=result.get("markdown_path"),
+                                pages=result.get("pages", 0),
+                                processing_time=result.get("processing_time", 0)
+                            )
                         else:
                             failed += 1
+                            # Update database record for failure
+                            self.update_processing_record(
+                                Path(result["pdf_path"]),
+                                "failed",
+                                error_message=result.get("error", "Unknown error")
+                            )
                         
                     except Exception as e:
                         self.logger.error(f"Processing failed for {pdf_path}: {e}")
@@ -348,6 +515,12 @@ class BatchPDFProcessor:
                             "pdf_path": str(pdf_path),
                             "error": str(e)
                         })
+                        # Update database record for exception
+                        self.update_processing_record(
+                            pdf_path,
+                            "failed",
+                            error_message=str(e)
+                        )
                     
                     pbar.update(1)
                     pbar.set_postfix({

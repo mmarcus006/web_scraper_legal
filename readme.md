@@ -1,76 +1,160 @@
-# US Tax Court Document Scraper
+# US Tax Court Document Processing System
 
-A high-performance, production-grade scraper for downloading US Tax Court opinions and documents from the Dawson API. Features parallel downloads, network resilience, and comprehensive error recovery.
+A comprehensive, production-grade system for scraping, processing, and searching US Tax Court documents. Features advanced PDF processing with IBM Docling, OCR support, GPU acceleration, and AI-powered semantic search using LlamaIndex.
 
-## ✨ Features
+## 🌟 Key Features
 
+### Document Scraping & Download
 - **🚀 Parallel Downloads**: Configurable worker pool for concurrent document downloads
 - **🔄 Network Resilience**: Automatic retry with exponential backoff and connection pooling
 - **💾 State Persistence**: SQLite database tracks downloads and enables resumption
 - **📊 Progress Tracking**: Real-time progress bars and detailed statistics
 - **🔍 Smart Deduplication**: Skip already-downloaded files automatically
-- **📁 Organized Storage**: Documents organized by filing date (YYYY-MM folders)
-- **🛡️ Error Recovery**: Resume interrupted downloads and retry failed ones
-- **⚙️ Highly Configurable**: Environment variables and command-line options
-- **📈 Performance Monitoring**: Detailed statistics and verification tools
+
+### Advanced PDF Processing
+- **🤖 IBM Docling Integration**: State-of-the-art PDF processing with AI models
+- **📝 OCR Support**: Extract text from scanned documents using RapidOCR
+- **📊 Table Recognition**: Advanced table structure extraction with TableFormer
+- **⚡ GPU Acceleration**: CUDA support for 2-5x faster processing
+- **📄 Markdown Conversion**: Convert PDFs to searchable markdown format
+
+### AI-Powered Search (RAG)
+- **🔍 Semantic Search**: Find relevant documents using natural language queries
+- **🎯 Vector Embeddings**: HuggingFace models for document understanding
+- **💾 Vector Database**: ChromaDB for efficient similarity search
+- **🏷️ Metadata Filtering**: Search by year, month, docket number, judge
+- **📈 LlamaIndex Integration**: Production-ready RAG system
 
 ## 📋 Requirements
 
-- Python 3.10+ (tested with 3.13.5)
-- pip package manager
-- ~5-20GB storage for full 2020-2025 dataset
-- Windows, macOS, or Linux
+- **Python 3.10 - 3.12** (Python 3.13 not yet supported due to dependencies)
+- **Storage**: 5-20GB for full 2020-2025 dataset
+- **RAM**: 8GB minimum, 16GB recommended
+- **GPU**: Optional, CUDA 11.8+ for acceleration
+- **OS**: Windows, macOS, or Linux
+
+### Windows Prerequisites
+For Windows users, install Microsoft C++ Build Tools:
+- Download from: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+- Install with "Desktop development with C++" workload
 
 ## 🚀 Installation
 
-### Quick Setup
+### 1. Create Virtual Environment
 
 ```bash
-# Clone or download the project
-cd web_scraper_legal
+# Use Python 3.11 or 3.12 (recommended)
+python3.11 -m venv .venv
 
-# Install all dependencies
-pip install aiohttp aiofiles tqdm pydantic pydantic-settings \
-            python-dotenv rich sqlalchemy aiosqlite tenacity \
-            click PyPDF2 python-dateutil
-
-# Create necessary directories
-mkdir -p data/json data/documents data/db logs
+# Activate environment
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 ```
 
-### Verify Installation
+### 2. Install Package
 
 ```bash
-# Test the installation
-python run.py --help
+# Clone repository
+git clone <repository-url>
+cd web_scraper_legal
 
-# Run a quick test scrape (1 day)
-python run.py --start-date 2024-12-01 --end-date 2024-12-02 --no-pdfs
+# Install with all features
+pip install -e .
+
+# Or use uv for faster installation
+uv pip install -e .
+```
+
+### 3. Create Required Directories
+
+```bash
+# Windows PowerShell:
+New-Item -ItemType Directory -Force -Path data\json, data\documents, data\db, logs, data\markdown_documents, data\vector_store
+
+# macOS/Linux:
+mkdir -p data/{json,documents,db,markdown_documents,vector_store} logs
+```
+
+## 📖 Quick Start
+
+### 1. Scrape Documents
+
+```bash
+# Basic scraping (2020 to today)
+python run.py
+
+# Custom date range
+python run.py --start-date 2024-01-01 --end-date 2024-12-31
+
+# Faster with more workers
+python run.py --workers 10
+```
+
+### 2. Convert PDFs to Markdown
+
+```bash
+# Process all PDFs
+python -m dawson_scraper.src.cli_rag process-pdfs
+
+# With more workers
+python -m dawson_scraper.src.cli_rag process-pdfs --workers 8
+
+# Enable Vision-Language Model for better accuracy
+python -m dawson_scraper.src.cli_rag process-pdfs --enable-vlm
+```
+
+### 3. Build Search Index
+
+```bash
+# Create vector index
+python -m dawson_scraper.src.cli_rag build-index
+
+# Update existing index
+python -m dawson_scraper.src.cli_rag build-index --incremental
+```
+
+### 4. Search Documents
+
+```bash
+# Basic search
+python -m dawson_scraper.src.cli_rag search "capital gains tax"
+
+# Search with filters
+python -m dawson_scraper.src.cli_rag search "medical expenses" --year 2023
+
+# Get more results
+python -m dawson_scraper.src.cli_rag search "partnership" --top-k 10
 ```
 
 ## 📁 Project Structure
 
 ```
 web_scraper_legal/
-├── run.py                   # Main entry point
-├── .env                     # Configuration (optional)
-├── dawson_scraper/
-│   └── src/
-│       ├── __init__.py     # Package initialization
-│       ├── config.py       # Settings management
-│       ├── models.py       # Data models
-│       ├── database.py     # SQLite persistence
-│       ├── api_client.py   # Async API client
-│       ├── downloader.py   # Parallel downloader
-│       ├── scraper.py      # Main orchestration
-│       └── utils.py        # Utilities
+├── run.py                      # Main scraper entry point
+├── pyproject.toml              # Project configuration
+├── .env                        # Environment variables (optional)
+│
+├── dawson_scraper/src/
+│   ├── scraper.py             # Document scraping orchestration
+│   ├── api_client.py          # Dawson API client
+│   ├── downloader.py          # Parallel download manager
+│   ├── database.py            # SQLite persistence
+│   ├── pdf_pipeline.py        # Docling PDF processing
+│   ├── batch_pdf_processor.py # Bulk PDF conversion
+│   ├── rag_system.py          # LlamaIndex RAG implementation
+│   └── cli_rag.py             # RAG system CLI
+│
 ├── data/
-│   ├── json/               # Monthly JSON files
-│   ├── documents/          # PDFs organized by month (YYYY-MM)
-│   └── db/                 # SQLite database
-├── logs/                   # Application logs
-├── CLAUDE.md               # AI assistant instructions
-└── README.md               # This file
+│   ├── json/                  # API metadata files
+│   ├── documents/             # Downloaded PDFs (YYYY-MM/)
+│   ├── markdown_documents/    # Converted markdown files
+│   ├── vector_store/          # ChromaDB vector database
+│   ├── processing_stats/      # Processing tracking
+│   └── db/                    # SQLite databases
+│
+└── logs/                      # Application logs
 ```
 
 ## ⚙️ Configuration

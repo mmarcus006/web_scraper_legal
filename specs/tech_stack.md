@@ -1,7 +1,7 @@
 # Technology Stack
 
 ## Primary Language
-- **Python 3.10+** (tested with 3.13.5)
+- **Python 3.10 - 3.12** (Python 3.13 not yet supported due to sentencepiece dependency)
 
 ## Core Frameworks & Libraries
 
@@ -24,9 +24,37 @@
 ### Configuration
 - **python-dotenv** (>=1.0.0) - Load environment variables from .env files
 
-### Additional Dependencies (from README)
-- **PyPDF2** - PDF file verification and validation
-- **python-dateutil** - Advanced date/time parsing and manipulation
+### PDF Processing & AI
+- **docling** - IBM's state-of-the-art PDF processing toolkit
+- **docling-core** - Core document processing capabilities
+- **docling-ibm-models** - Pre-trained AI models for document understanding
+- **transformers** (>=4.35.0) - HuggingFace transformers for NLP
+- **accelerate** (>=0.25.0) - PyTorch model acceleration
+- **sentencepiece** (>=0.1.99) - Text tokenization for transformers
+
+### RAG System & Vector Search
+- **llama-index** (>=0.9.0) - RAG framework for document search
+- **llama-index-core** - Core LlamaIndex functionality
+- **llama-index-readers-file** - File readers for various formats
+- **llama-index-embeddings-huggingface** - HuggingFace embedding integration
+- **llama-index-vector-stores-chroma** - ChromaDB vector store support
+- **chromadb** (>=0.4.0) - Vector database for embeddings
+- **tiktoken** (>=0.5.0) - Token counting for LLMs
+- **nest-asyncio** (>=1.5.0) - Nested async event loop support
+
+### Computer Vision & OCR
+- **rapidocr-paddle** (>=1.3.0) - OCR for scanned documents
+- **torch** (>=2.0.0) - PyTorch for deep learning
+- **torchvision** (>=0.15.0) - Computer vision models
+- **torchaudio** (>=2.0.0) - Audio processing (dependency)
+- **bitsandbytes** (>=0.41.0) - Quantization for memory efficiency
+
+### Scientific Computing
+- **numpy** (>=1.24.0) - Numerical computing foundation
+
+### Additional Dependencies
+- **PyPDF2** (>=3.0.0) - PDF file verification and validation
+- **python-dateutil** (>=2.8.0) - Advanced date/time parsing and manipulation
 
 ## Development Tools
 
@@ -42,13 +70,24 @@
 ## Build System
 - **setuptools** (>=61.0) - Python package build backend
 
+## GPU Acceleration
+- **CUDA 11.8+** (optional) - GPU acceleration for PDF processing and AI models
+- Provides 2-5x speed improvement for document processing
+- Automatically detected and used when available
+
 ## Platform Support
 - Windows (MSYS_NT, native Windows)
 - macOS
 - Linux
 
 ## Database
-- **SQLite** - Embedded database for state persistence and download tracking
+- **SQLite** - Embedded database for:
+  - Document download tracking
+  - PDF processing status
+  - Search operation history
+  - Vector store metadata
 
-## External APIs
+## External APIs & Services
 - **Dawson Court API** - US Tax Court document search and retrieval service
+- **HuggingFace Hub** - Pre-trained models for embeddings and NLP
+- **IBM Docling Models** - Advanced document processing AI models

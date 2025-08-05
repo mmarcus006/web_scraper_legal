@@ -1,13 +1,15 @@
 # Database Schema
 
-This document describes the SQLite database structure used for tracking downloads and state management.
+This document describes the SQLite database structures used for tracking downloads, PDF processing, and state management.
 
-## Database Location
+## Database Locations
 ```
-data/db/dawson_scraper.db
+data/db/dawson_scraper.db          # Main scraping operations
+data/processing_stats/processing.db # PDF processing tracking
+data/vector_store/chroma.sqlite3    # Vector embeddings (ChromaDB)
 ```
 
-## Tables
+## Main Database Tables (dawson_scraper.db)
 
 ### 1. downloads
 **Purpose**: Tracks individual document downloads, their status, and metadata
@@ -128,10 +130,78 @@ FROM downloads
 WHERE status IN ('completed', 'failed');
 ```
 
+## PDF Processing Database (processing.db)
+
+### 3. pdf_processing
+**Purpose**: Tracks PDF to markdown conversion operations
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | INTEGER | PRIMARY KEY | Auto-incrementing unique identifier |
+| pdf_path | STRING | NOT NULL, UNIQUE | Full path to source PDF file |
+| markdown_path | STRING | | Path to generated markdown file |
+| status | STRING | DEFAULT 'pending' | Processing status (see below) |
+| pages | INTEGER | | Number of pages in PDF |
+| processing_time | FLOAT | | Time taken to process (seconds) |
+| error_message | TEXT | | Error details if processing failed |
+| created_at | DATETIME | DEFAULT NOW | When record was created |
+| completed_at | DATETIME | | When processing completed |
+
+**Processing Status Values**:
+- `pending`: Not yet processed
+- `processing`: Currently being processed
+- `completed`: Successfully converted to markdown
+- `failed`: Processing failed
+- `skipped`: Skipped (file already exists)
+
+### PDF Processing Queries
+
+```sql
+-- Check processing statistics
+SELECT 
+    status,
+    COUNT(*) as count,
+    AVG(processing_time) as avg_time_seconds,
+    SUM(pages) as total_pages
+FROM pdf_processing
+GROUP BY status;
+
+-- Find processing failures
+SELECT 
+    pdf_path,
+    error_message,
+    processing_time
+FROM pdf_processing
+WHERE status = 'failed'
+ORDER BY created_at DESC;
+
+-- Calculate processing throughput
+SELECT 
+    DATE(created_at) as date,
+    COUNT(*) as files_processed,
+    SUM(pages) as pages_processed,
+    AVG(processing_time) as avg_time_per_file
+FROM pdf_processing
+WHERE status = 'completed'
+GROUP BY DATE(created_at)
+ORDER BY date DESC;
+```
+
+## Vector Store Database (chroma.sqlite3)
+
+Managed by ChromaDB, contains:
+- Document embeddings as high-dimensional vectors
+- Metadata for each document chunk
+- Collection information for different document sets
+- Vector similarity indices for fast search
+
+Accessed through the RAG system API rather than direct SQL queries.
+
 ## Database Operations
 
-### Key Functions in DatabaseManager
+### Key Functions by Database
 
+**DatabaseManager (dawson_scraper.db)**:
 1. **initialize()**: Creates database and tables if they don't exist
 2. **record_opinion()**: Inserts or updates a download record
 3. **record_search()**: Tracks a search operation
@@ -139,6 +209,21 @@ WHERE status IN ('completed', 'failed');
 5. **get_pending_downloads()**: Retrieves downloads that need retry
 6. **get_statistics()**: Generates comprehensive statistics
 7. **cleanup_stale_downloads()**: Marks stuck downloads as failed
+
+**BatchPDFProcessor (processing.db)**:
+1. **initialize_db()**: Creates processing database and tables
+2. **get_pdf_files()**: Discovers PDF files for processing
+3. **record_processing()**: Tracks PDF conversion status
+4. **update_processing_status()**: Updates processing results
+5. **get_processing_stats()**: Generates processing statistics
+6. **skip_existing()**: Checks for already-processed files
+
+**TaxCourtRAGSystem (chroma.sqlite3)**:
+1. **build_index()**: Creates vector embeddings from markdown documents
+2. **search()**: Performs semantic search queries
+3. **add_documents()**: Adds new documents to the index
+4. **update_index()**: Incremental index updates
+5. **get_metadata()**: Retrieves document metadata
 
 ## Data Retention
 
@@ -156,12 +241,21 @@ WHERE status IN ('completed', 'failed');
 ## Backup Recommendations
 
 ```bash
-# Create backup
+# Backup main database
 sqlite3 data/db/dawson_scraper.db ".backup data/db/backup.db"
 
+# Backup processing database
+sqlite3 data/processing_stats/processing.db ".backup data/processing_stats/backup.db"
+
+# Backup vector store (entire directory)
+cp -r data/vector_store data/vector_store_backup
+
 # Export to SQL
-sqlite3 data/db/dawson_scraper.db .dump > backup.sql
+sqlite3 data/db/dawson_scraper.db .dump > dawson_backup.sql
+sqlite3 data/processing_stats/processing.db .dump > processing_backup.sql
 
 # Verify integrity
 sqlite3 data/db/dawson_scraper.db "PRAGMA integrity_check;"
+sqlite3 data/processing_stats/processing.db "PRAGMA integrity_check;"
+sqlite3 data/vector_store/chroma.sqlite3 "PRAGMA integrity_check;"
 ```
