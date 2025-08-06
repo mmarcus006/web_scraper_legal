@@ -1,8 +1,10 @@
 # Module Overview
 
-This document outlines the purpose and responsibility of the primary source code modules in the `dawson_scraper/src/` directory.
+This document outlines the purpose and responsibility of the primary source code modules in both RAG systems:
+- **ChromaDB RAG System**: `dawson_scraper/src/` directory (development-focused)
+- **Legal RAG System**: `legal_rag/src/` directory (production-focused)
 
-## Core Scraping Modules
+## Core Scraping Modules (Shared by Both Systems)
 
 ### **config.py**
 Manages all application configuration using Pydantic settings, loading values from environment variables or `.env` files. Provides centralized configuration for worker counts, date ranges, download behavior, and API settings.
@@ -31,7 +33,7 @@ Utility functions supporting the main modules. Includes logging configuration, f
 Advanced PDF processing pipeline using IBM Docling. Provides state-of-the-art document conversion with OCR support, table structure recognition, Vision-Language Model (VLM) integration, and GPU acceleration. Handles complex layouts, scanned documents, and multilingual content with high accuracy.
 
 ### **batch_pdf_processor.py**
-Batch processing system for converting large numbers of PDFs to markdown format at scale. Features multiprocessing support, SQLite progress tracking, resume capability, and comprehensive error handling. Optimized for processing thousands of court documents efficiently.
+Batch processing system for converting large numbers of PDFs to dual formats at scale. Features multiprocessing support, SQLite progress tracking, resume capability, and comprehensive error handling. Exports documents in both markdown format (optimized for RAG/search) and Docling JSON format (complete document structure with tables, images, and layout). Optimized for processing thousands of court documents efficiently with simultaneous dual output.
 
 ### **rag_system.py**
 LlamaIndex-based Retrieval-Augmented Generation (RAG) system for semantic search across processed documents. Implements vector embeddings using HuggingFace models, ChromaDB for vector storage, metadata filtering, and natural language query processing. Enables intelligent document discovery and content analysis.
@@ -51,11 +53,14 @@ Command-line interface for PDF processing and RAG system operations. Provides us
 
 ### PDF Processing & Search Workflow
 1. **Processing Entry**: `cli_rag.py` → `batch_pdf_processor.py` → `pdf_pipeline.py`
-2. **Document Conversion**: `pdf_pipeline.py` uses IBM Docling → converts PDFs to markdown
-3. **Batch Operations**: `batch_pdf_processor.py` manages multiprocessing → tracks progress in SQLite
-4. **Index Building**: `rag_system.py` processes markdown → creates vector embeddings → stores in ChromaDB
-5. **Search Operations**: `rag_system.py` processes queries → retrieves relevant documents → returns results
-6. **CLI Interface**: `cli_rag.py` provides user commands → coordinates all processing and search operations
+2. **Document Conversion**: `pdf_pipeline.py` uses IBM Docling → converts PDFs to dual formats
+3. **Dual Export**: `batch_pdf_processor.py` simultaneously creates:
+   - Markdown files (clean text for RAG/search)
+   - Docling JSON files (complete structure with tables/images)
+4. **Batch Operations**: `batch_pdf_processor.py` manages multiprocessing → tracks progress in SQLite
+5. **Index Building**: `rag_system.py` processes markdown → creates vector embeddings → stores in ChromaDB
+6. **Search Operations**: `rag_system.py` processes queries → retrieves relevant documents → returns results
+7. **CLI Interface**: `cli_rag.py` provides user commands → coordinates all processing and search operations
 
 ## Design Principles
 

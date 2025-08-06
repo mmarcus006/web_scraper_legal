@@ -15,11 +15,7 @@ from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from .pdf_pipeline import (
-    create_docling_converter,
-    save_markdown_with_metadata,
-    setup_logging
-)
+# Import moved inside functions for Windows multiprocessing compatibility
 
 Base = declarative_base()
 
@@ -47,7 +43,17 @@ def process_pdf_standalone(
     Returns:
         Processing result dictionary
     """
-    logger = setup_logging("INFO")
+    # Import inside function for Windows multiprocessing compatibility
+    import logging
+    import sys
+    
+    # Simple logger setup to avoid complex initialization in worker process
+    logger = logging.getLogger(f"pdf_worker_{os.getpid()}")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
     pdf_path = Path(pdf_path)
     input_dir = Path(input_dir)
     markdown_output_dir = Path(markdown_output_dir)
@@ -61,12 +67,19 @@ def process_pdf_standalone(
         markdown_path = markdown_output_dir / relative_path.parent / pdf_path.stem
         json_path = json_output_dir / relative_path.parent / pdf_path.stem
         
-        # Create converter
-        converter = create_docling_converter(
-            enable_ocr=enable_ocr,
-            enable_table_structure=enable_table_structure,
-            enable_vlm=enable_vlm
-        )
+        # Import converter creation function inside try block for Windows
+        from .pdf_pipeline import create_docling_converter, save_markdown_with_metadata
+        
+        # Create converter with error handling
+        try:
+            converter = create_docling_converter(
+                enable_ocr=enable_ocr,
+                enable_table_structure=enable_table_structure,
+                enable_vlm=enable_vlm
+            )
+        except Exception as e:
+            logger.error(f"Failed to create converter: {e}")
+            raise
         
         # Convert PDF using Docling
         start_time = time.time()
@@ -150,7 +163,7 @@ class BatchPDFProcessor:
         output_dir: str = "data/markdown_documents",
         json_output_dir: str = "data/json_documents",
         db_path: str = "data/processing_stats/processing.db",
-        max_workers: int = 4,
+        max_workers: int = 2,
         enable_ocr: bool = True,
         enable_table_structure: bool = True,
         enable_vlm: bool = False
@@ -184,6 +197,7 @@ class BatchPDFProcessor:
         self.SessionLocal = sessionmaker(bind=self.engine)
         
         # Setup logging
+        from .pdf_pipeline import setup_logging
         self.logger = setup_logging("INFO")
     
     def get_pdf_files(self) -> List[Path]:
@@ -319,7 +333,8 @@ class BatchPDFProcessor:
             # Get output paths for both markdown and JSON
             markdown_path, json_path = self.get_output_paths(pdf_path)
             
-            # Create converter for this process
+            # Import and create converter for this process
+            from .pdf_pipeline import create_docling_converter, save_markdown_with_metadata
             converter = create_docling_converter(
                 enable_ocr=self.enable_ocr,
                 enable_table_structure=self.enable_table_structure,
@@ -593,6 +608,9 @@ class BatchPDFProcessor:
 # CLI usage
 if __name__ == "__main__":
     import argparse
+    
+    # Required for Windows multiprocessing
+    multiprocessing.freeze_support()
     
     parser = argparse.ArgumentParser(description="Batch process PDFs to markdown")
     parser.add_argument("--input-dir", default="data/documents", help="Input directory")

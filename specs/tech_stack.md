@@ -32,7 +32,7 @@
 - **accelerate** (>=0.25.0) - PyTorch model acceleration
 - **sentencepiece** (>=0.1.99) - Text tokenization for transformers
 
-### RAG System & Vector Search
+### ChromaDB RAG System & Vector Search
 - **llama-index** (>=0.9.0) - RAG framework for document search
 - **llama-index-core** - Core LlamaIndex functionality
 - **llama-index-readers-file** - File readers for various formats
@@ -41,6 +41,18 @@
 - **chromadb** (>=0.4.0) - Vector database for embeddings
 - **tiktoken** (>=0.5.0) - Token counting for LLMs
 - **nest-asyncio** (>=1.5.0) - Nested async event loop support
+
+### Legal RAG System (Production)
+- **pymilvus** (>=2.4.0) - Milvus vector database client
+- **pymilvus[model]** - Additional model support for Milvus
+- **llama-index-vector-stores-milvus** - Milvus integration for LlamaIndex
+- **llama-index-llms-gemini** - Google Gemini LLM integration
+- **llama-index-embeddings-gemini** - Gemini embedding models
+- **llama-index-readers-docling** - Docling document readers
+- **llama-index-node-parser-docling** - Docling node parsers
+- **google-generativeai** (>=0.3.0) - Google Gemini API client
+- **sentence-transformers** (>=2.3.0) - Advanced embedding models
+- **rank-bm25** (>=0.2.2) - BM25 sparse retrieval implementation
 
 ### Computer Vision & OCR
 - **rapidocr-paddle** (>=1.3.0) - OCR for scanned documents
@@ -76,18 +88,65 @@
 - Automatically detected and used when available
 
 ## Platform Support
-- Windows (MSYS_NT, native Windows)
-- macOS
-- Linux
+- **Windows** (MSYS_NT, native Windows)
+- **macOS** (Intel and Apple Silicon)
+- **Linux** (Ubuntu, CentOS, Debian)
+- **Docker** (for Legal RAG System services)
 
-## Database
+## Embedding Models Supported
+
+### ChromaDB RAG System
+- **BAAI/bge-base-en-v1.5** (default) - 768 dimensions, good performance
+- **sentence-transformers/all-MiniLM-L6-v2** - 384 dimensions, lightweight
+- **HuggingFace models** - Any compatible transformer model
+
+### Legal RAG System (MTEB-optimized)
+- **intfloat/e5-large-v2** (default) - 1024 dimensions, excellent balance
+- **Alibaba-NLP/gte-Qwen2-7B-instruct** - 7680 dimensions, best accuracy
+- **BAAI/bge-large-en-v1.5** - 1024 dimensions, fast processing
+- **sentence-transformers/all-MiniLM-L6-v2** - 384 dimensions, development
+- **Google Gemini embeddings** - Latest embedding models from Google
+
+## Search Technologies
+
+### ChromaDB RAG System
+- **Dense Vector Search** - Semantic similarity using transformer embeddings
+- **Metadata Filtering** - Filter by year, month, judge, docket number
+- **Cosine Similarity** - Standard vector similarity measurement
+
+### Legal RAG System
+- **Hybrid Search** - Combines dense and sparse retrieval for optimal results
+- **Dense Embeddings** - Semantic understanding using transformer models
+- **Sparse Embeddings** - BM25 keyword matching for exact term relevance
+- **Score Fusion** - Intelligent combination of dense and sparse scores
+- **Advanced Filtering** - Complex metadata queries with boolean logic
+
+## Databases
+
+### SQLite (Shared)
 - **SQLite** - Embedded database for:
   - Document download tracking
   - PDF processing status
   - Search operation history
-  - Vector store metadata
+  - Vector store metadata (ChromaDB)
+
+### Vector Databases
+- **ChromaDB** - Embedded vector database for development and small-scale deployment
+- **Milvus** - Production-grade distributed vector database with:
+  - Scalability to billions of vectors
+  - SIMD acceleration for high performance
+  - Hybrid search (dense + sparse vectors)
+  - ACID compliance and persistence
+  - Web UI management via Attu
+
+### Docker Infrastructure (Legal RAG System)
+- **etcd** - Distributed key-value store for Milvus coordination
+- **MinIO** - S3-compatible object storage for Milvus
+- **Attu** - Web-based management interface for Milvus
 
 ## External APIs & Services
 - **Dawson Court API** - US Tax Court document search and retrieval service
 - **HuggingFace Hub** - Pre-trained models for embeddings and NLP
 - **IBM Docling Models** - Advanced document processing AI models
+- **Google Gemini API** - Large language model for AI responses and embeddings
+- **MTEB Leaderboard Models** - Top-performing embedding models for semantic search

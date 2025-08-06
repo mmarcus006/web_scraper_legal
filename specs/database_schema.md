@@ -133,13 +133,14 @@ WHERE status IN ('completed', 'failed');
 ## PDF Processing Database (processing.db)
 
 ### 3. pdf_processing
-**Purpose**: Tracks PDF to markdown conversion operations
+**Purpose**: Tracks PDF to dual format (markdown and JSON) conversion operations
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | INTEGER | PRIMARY KEY | Auto-incrementing unique identifier |
 | pdf_path | STRING | NOT NULL, UNIQUE | Full path to source PDF file |
 | markdown_path | STRING | | Path to generated markdown file |
+| json_path | STRING | | Path to generated Docling JSON file |
 | status | STRING | DEFAULT 'pending' | Processing status (see below) |
 | pages | INTEGER | | Number of pages in PDF |
 | processing_time | FLOAT | | Time taken to process (seconds) |
@@ -150,9 +151,9 @@ WHERE status IN ('completed', 'failed');
 **Processing Status Values**:
 - `pending`: Not yet processed
 - `processing`: Currently being processed
-- `completed`: Successfully converted to markdown
+- `completed`: Successfully converted to both markdown and JSON formats
 - `failed`: Processing failed
-- `skipped`: Skipped (file already exists)
+- `skipped`: Skipped (both files already exist)
 
 ### PDF Processing Queries
 
@@ -213,10 +214,10 @@ Accessed through the RAG system API rather than direct SQL queries.
 **BatchPDFProcessor (processing.db)**:
 1. **initialize_db()**: Creates processing database and tables
 2. **get_pdf_files()**: Discovers PDF files for processing
-3. **record_processing()**: Tracks PDF conversion status
-4. **update_processing_status()**: Updates processing results
+3. **record_processing()**: Tracks PDF conversion status for both formats
+4. **update_processing_status()**: Updates processing results for markdown and JSON
 5. **get_processing_stats()**: Generates processing statistics
-6. **skip_existing()**: Checks for already-processed files
+6. **skip_existing()**: Checks for already-processed files (both markdown and JSON)
 
 **TaxCourtRAGSystem (chroma.sqlite3)**:
 1. **build_index()**: Creates vector embeddings from markdown documents

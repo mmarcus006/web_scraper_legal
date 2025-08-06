@@ -1,5 +1,9 @@
 # Setup Guide
 
+This guide covers setup for both RAG systems:
+- **ChromaDB RAG System**: Simple setup for development and small-scale use
+- **Legal RAG System**: Production setup with Milvus and Google Gemini
+
 ## Prerequisites
 
 ### System Requirements
@@ -9,6 +13,8 @@
 - **Memory**: 8 GB RAM minimum, 16 GB recommended for AI processing
 - **Network**: Stable internet connection for API access and model downloads
 - **GPU**: Optional, CUDA 11.8+ for 2-5x processing acceleration
+- **Docker**: Optional, required for Legal RAG System (Milvus)
+- **Google Gemini API**: Optional, required for Legal RAG System chat features
 
 ### Operating System Support
 - Windows 10/11 (with C++ Build Tools)
@@ -72,10 +78,10 @@ uv pip install -e .
 
 ```bash
 # Create all data and log directories
-mkdir -p data/{json,documents,db,markdown_documents,vector_store,processing_stats} logs
+mkdir -p data/{json,documents,db,markdown_documents,json_documents,vector_store,processing_stats,milvus,processed} logs
 
 # On Windows PowerShell:
-New-Item -ItemType Directory -Force -Path data\json, data\documents, data\db, data\markdown_documents, data\vector_store, data\processing_stats, logs
+New-Item -ItemType Directory -Force -Path data\json, data\documents, data\db, data\markdown_documents, data\json_documents, data\vector_store, data\processing_stats, data\milvus, data\processed, logs
 ```
 
 ### 5. Configure Environment Variables (Optional)
@@ -85,26 +91,32 @@ Create a `.env` file in the project root:
 ```bash
 # .env configuration file
 
-# Worker Configuration
+# Scraping Configuration
 PARALLEL_WORKERS=5              # Number of concurrent download workers (1-20, default: 5)
 MAX_CONCURRENT_DOWNLOADS=50     # Maximum concurrent downloads per worker (default: 50)
-
-# Date Range
 START_DATE=2020-01-01           # Start date for scraping (YYYY-MM-DD)
 END_DATE=2024-12-31             # End date for scraping (YYYY-MM-DD)
-
-# Download Behavior
 DOWNLOAD_PDFS=true              # Enable/disable PDF downloads (default: true)
 SKIP_EXISTING=true              # Skip already-downloaded files (default: true)
 VERIFY_PDFS=false               # Verify PDF integrity after download (default: false)
-
-# API Configuration
 BASE_URL=https://dawson.uscourts.gov/api  # Dawson API base URL
 RATE_LIMIT_DELAY=0.2            # Delay between requests per worker in seconds
-
-# Retry Configuration
 MAX_RETRIES=3                   # Maximum retry attempts for failed downloads
 RETRY_DELAY=5                   # Initial retry delay in seconds
+
+# Legal RAG System Configuration
+GOOGLE_API_KEY=your_gemini_api_key_here  # Google Gemini API key
+GEMINI_MODEL=gemini-1.5-flash            # Gemini model version
+MILVUS_HOST=localhost                    # Milvus server host
+MILVUS_PORT=19530                        # Milvus server port
+MILVUS_COLLECTION=tax_court_documents    # Milvus collection name
+
+# Embedding and Processing Configuration
+EMBEDDING_MODEL=intfloat/e5-large-v2     # HuggingFace embedding model
+RAG_BATCH_SIZE=100                       # Processing batch size
+RAG_MAX_WORKERS=8                        # Max workers for RAG processing
+CHUNK_SIZE=512                           # Text chunk size for processing
+CHUNK_OVERLAP=50                         # Overlap between chunks
 
 # File Paths (usually not needed to change)
 JSON_DIR=data/json              # Directory for JSON metadata files
@@ -113,13 +125,36 @@ DB_PATH=data/db/dawson_scraper.db  # SQLite database path
 LOG_FILE=logs/dawson_scraper.log   # Log file path
 ```
 
+### 6. Setup Legal RAG System (Optional)
+
+If you want to use the production Legal RAG System:
+
+```bash
+# Start Milvus services
+docker-compose up -d
+
+# Wait for services to start (30-60 seconds)
+docker ps
+
+# Verify Milvus is running
+curl http://localhost:19530/health
+
+# Access Attu web UI (optional)
+open http://localhost:8000
+```
+
 ## Verification
 
 ### Test Installation
 
 ```bash
-# Display help information
+# Test ChromaDB RAG System
 python run.py --help
+dawson-rag --help
+
+# Test Legal RAG System (if Docker is running)
+legal-rag --help
+legal-rag quickstart
 
 # Run a quick test (1 day, metadata only)
 python run.py --start-date 2024-12-01 --end-date 2024-12-02 --no-pdfs
@@ -134,52 +169,70 @@ You should see:
 
 ## Run Commands
 
-### Document Scraping
+### Document Scraping (Same for Both Systems)
 
 ```bash
 # Full scrape with default settings (2020 to today)
-python run.py
+dawson
 
 # Custom date range
-python run.py --start-date 2024-01-01 --end-date 2024-12-31
+dawson --start-date 2024-01-01 --end-date 2024-12-31
 
 # Increase parallel workers for faster downloads
-python run.py --workers 10
+dawson --workers 10
 
 # Download metadata only (no PDFs)
-python run.py --no-pdfs
+dawson --no-pdfs
 
 # Resume interrupted downloads
-python run.py --resume
+dawson --resume
 
 # Show download statistics
-python run.py --stats
+dawson --stats
 ```
 
-### PDF Processing
+### ChromaDB RAG System
 
 ```bash
-# Convert all PDFs to markdown
-python -m dawson_scraper.src.cli_rag process-pdfs
+# Convert all PDFs to markdown and JSON formats
+dawson-rag process-pdfs
 
 # Process with more workers and VLM
-python -m dawson_scraper.src.cli_rag process-pdfs --workers 8 --enable-vlm
+dawson-rag process-pdfs --workers 8 --enable-vlm
 
-# Process specific directory
-python -m dawson_scraper.src.cli_rag process-pdfs --input-dir data/documents/2024-01
-```
-
-### Search System
-
-```bash
 # Build search index from markdown documents
-python -m dawson_scraper.src.cli_rag build-index
+dawson-rag build-index
 
 # Search documents
-python -m dawson_scraper.src.cli_rag search "capital gains tax"
+dawson-rag search "capital gains tax"
 
 # Search with filters
-python -m dawson_scraper.src.cli_rag search "medical expenses" --year 2023 --top-k 10
+dawson-rag search "medical expenses" --year 2023 --top-k 10
+```
+
+### Legal RAG System (Production)
+
+```bash
+# Ensure Milvus is running
+docker-compose up -d
+
+# Process PDFs with advanced Docling
+legal-rag process --input-dir data/documents --workers 8
+
+# Build production vector index
+legal-rag index --recreate
+
+# Search with AI responses
+legal-rag search "capital gains tax treatment" --top-k 10
+
+# Interactive chat with Gemini
+legal-rag chat
+
+# System statistics and monitoring
+legal-rag stats
+
+# Use embedded mode (no Docker required)
+legal-rag search "tax deductions" --use-lite
 ```
 
 ## Development Setup
@@ -197,14 +250,14 @@ pip install -e ".[dev]"
 ### Code Quality Tools
 
 ```bash
-# Format code
-black dawson_scraper/src/
+# Format code (both systems)
+black dawson_scraper/src/ legal_rag/src/
 
 # Lint code
-ruff check dawson_scraper/src/
+ruff check dawson_scraper/src/ legal_rag/src/
 
 # Type checking
-mypy dawson_scraper/src/
+mypy dawson_scraper/src/ legal_rag/src/
 
 # Run tests
 pytest tests/
@@ -235,9 +288,24 @@ pytest tests/
    - CPU fallback is automatic if GPU unavailable
 
 5. **Vector Store Issues**
+   
+   **ChromaDB:**
    - ChromaDB creates index automatically
    - Delete `data/vector_store/` to rebuild from scratch
    - Ensure sufficient disk space for embeddings
+   
+   **Milvus (Legal RAG):**
+   - Check Docker services: `docker ps`
+   - View Milvus logs: `docker logs milvus-standalone`
+   - Restart services: `docker-compose restart`
+   - Use embedded mode as fallback: `legal-rag search "query" --use-lite`
+   - Access web UI for troubleshooting: http://localhost:8000
+
+6. **Google Gemini API Issues**
+   - Verify `GOOGLE_API_KEY` is set correctly in `.env`
+   - Check API quota and billing status
+   - Test with simple search before using chat features
+   - Use ChromaDB RAG system if Gemini is unavailable
 
 6. **Legacy Issues**
    - Module Import Errors: Ensure virtual environment is activated
@@ -258,17 +326,65 @@ tail -f logs/dawson_scraper.log
 
 ## Next Steps
 
+### Document Format Overview
+
+The PDF processing creates **two output formats** for maximum research flexibility:
+
+#### Markdown Format (data/markdown_documents/)
+- **Purpose**: Optimized for RAG, search, and text analysis
+- **Size**: Compact (8-50KB typical)
+- **Content**: Clean text with basic structure
+- **Usage**: Vector indexing, semantic search, LLM processing
+
+#### Docling JSON Format (data/json_documents/) 
+- **Purpose**: Complete document structure preservation
+- **Size**: Comprehensive (2-10MB typical)  
+- **Content**: Full hierarchy, tables, images, layout metadata
+- **Usage**: Document analysis, table extraction, layout-aware processing
+
+Both formats are created simultaneously during processing with no performance penalty.
+
 ### Complete Workflow
-1. **Scrape Documents**: Start with `python run.py --start-date 2024-01-01 --end-date 2024-01-31`
-2. **Process PDFs**: Run `python -m dawson_scraper.src.cli_rag process-pdfs`
-3. **Build Index**: Execute `python -m dawson_scraper.src.cli_rag build-index`
-4. **Search**: Try `python -m dawson_scraper.src.cli_rag search "tax deduction"`
+
+#### ChromaDB RAG System (Simple)
+1. **Scrape Documents**: `dawson --start-date 2024-01-01 --end-date 2024-01-31`
+2. **Process PDFs**: `dawson-rag process-pdfs` (creates both formats)
+3. **Build Index**: `dawson-rag build-index` (uses markdown)
+4. **Search**: `dawson-rag search "tax deduction"`
+5. **Analyze**: Use JSON files for table/structure analysis when needed
+
+#### Legal RAG System (Production)
+1. **Setup Services**: `docker-compose up -d`
+2. **Scrape Documents**: `dawson --start-date 2024-01-01 --end-date 2024-01-31`
+3. **Process PDFs**: `legal-rag process --workers 8`
+4. **Build Index**: `legal-rag index --recreate`
+5. **Search with AI**: `legal-rag search "tax deduction strategies"`
+6. **Interactive Chat**: `legal-rag chat`
+7. **Monitor**: Check http://localhost:8000 for Attu web UI
 
 ### Documentation Review
 1. Review the [API Contracts](api_contracts.md) to understand the Dawson API
 2. Check [Database Schema](database_schema.md) for data structure details
 3. See [Module Overview](module_overview.md) for architecture details
-4. Run help commands: `python run.py --help` and `python -m dawson_scraper.src.cli_rag --help`
+4. Run help commands: `dawson --help`, `dawson-rag --help`, `legal-rag --help`
+5. Quick start guide: `legal-rag quickstart`
+
+### Choosing Between Systems
+
+**Use ChromaDB RAG when:**
+- Development or testing
+- Small document collections (<10,000 docs)
+- No AI responses needed
+- Minimal infrastructure requirements
+- Quick setup required
+
+**Use Legal RAG System when:**
+- Production deployment
+- Large document collections (>10,000 docs)
+- AI-powered responses needed
+- Hybrid search capabilities required
+- Scalability and performance critical
+- Interactive chat interface desired
 
 ### Performance Tips
 - Start with a small date range to test your setup

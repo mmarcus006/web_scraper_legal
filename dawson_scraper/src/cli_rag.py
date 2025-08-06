@@ -3,6 +3,7 @@
 import click
 import json
 import sys
+import multiprocessing
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -25,7 +26,7 @@ def cli(ctx, verbose):
 @click.option('--input-dir', default='data/documents', help='Input directory with PDFs')
 @click.option('--output-dir', default='data/markdown_documents', help='Output directory for markdown')
 @click.option('--json-output-dir', default='data/json_documents', help='Output directory for JSON documents')
-@click.option('--workers', default=4, help='Number of parallel workers')
+@click.option('--workers', default=2, help='Number of parallel workers')
 @click.option('--skip-existing/--no-skip', default=True, help='Skip already processed files')
 @click.option('--filter', 'pdf_filter', help='Filter pattern (e.g., "2020-01/*.pdf")')
 @click.option('--enable-ocr/--no-ocr', default=True, help='Enable OCR for scanned documents')
@@ -291,4 +292,6 @@ def main():
 
 
 if __name__ == '__main__':
+    # Required for Windows multiprocessing
+    multiprocessing.freeze_support()
     sys.exit(main())

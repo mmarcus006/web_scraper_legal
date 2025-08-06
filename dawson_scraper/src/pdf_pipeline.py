@@ -20,17 +20,20 @@ from docling.datamodel.pipeline_options import (
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel import vlm_model_specs
 
-# Performance optimization: Set thread count for maximum throughput
-cpu_count = multiprocessing.cpu_count()
-os.environ['OMP_NUM_THREADS'] = str(cpu_count)
-
-# Fix Windows symlink permission issue for Hugging Face Hub
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
-os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
-
-# Configure logging levels for production use
-os.environ['DOCLING_LOG_LEVEL'] = 'INFO'
-os.environ['TRANSFORMERS_VERBOSITY'] = 'error'  # Reduce transformer noise
+# Environment setup moved to function to avoid issues with multiprocessing
+def setup_environment():
+    """Setup environment variables for optimal performance."""
+    # Performance optimization: Set thread count for maximum throughput
+    cpu_count = multiprocessing.cpu_count()
+    os.environ['OMP_NUM_THREADS'] = str(cpu_count)
+    
+    # Fix Windows symlink permission issue for Hugging Face Hub
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+    os.environ['HF_HUB_DISABLE_IMPLICIT_TOKEN'] = '1'
+    
+    # Configure logging levels for production use
+    os.environ['DOCLING_LOG_LEVEL'] = 'INFO'
+    os.environ['TRANSFORMERS_VERBOSITY'] = 'error'  # Reduce transformer noise
 
 
 def setup_logging(log_level: str = "INFO") -> logging.Logger:
@@ -106,11 +109,14 @@ def create_docling_converter(
     Returns:
         Configured DocumentConverter instance
     """
+    # Setup environment on first converter creation
+    setup_environment()
+    
     if device is None:
         device = get_device()
     
     if max_threads is None:
-        max_threads = cpu_count
+        max_threads = multiprocessing.cpu_count()
     
     # Create accelerator options
     accelerator_options = AcceleratorOptions(

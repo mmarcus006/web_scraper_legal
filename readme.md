@@ -16,14 +16,26 @@ A comprehensive, production-grade system for scraping, processing, and searching
 - **📝 OCR Support**: Extract text from scanned documents using RapidOCR
 - **📊 Table Recognition**: Advanced table structure extraction with TableFormer
 - **⚡ GPU Acceleration**: CUDA support for 2-5x faster processing
-- **📄 Markdown Conversion**: Convert PDFs to searchable markdown format
+- **📄 Dual Format Export**: Convert PDFs to both markdown and structured JSON formats
+- **🔧 Rich Document Structure**: JSON format preserves layout, tables, images, and metadata
 
-### AI-Powered Search (RAG)
+### AI-Powered Search (Dual RAG Systems)
+
+#### ChromaDB RAG System (Development)
 - **🔍 Semantic Search**: Find relevant documents using natural language queries
 - **🎯 Vector Embeddings**: HuggingFace models for document understanding
 - **💾 Vector Database**: ChromaDB for efficient similarity search
 - **🏷️ Metadata Filtering**: Search by year, month, docket number, judge
 - **📈 LlamaIndex Integration**: Production-ready RAG system
+
+#### Legal RAG System (Production)
+- **🚀 Advanced RAG**: Milvus vector database with hybrid search capabilities
+- **🤖 Google Gemini Integration**: AI-powered responses with state-of-the-art LLM
+- **⚡ Hybrid Search**: Combines dense embeddings with BM25 sparse retrieval
+- **🎯 Top Embedding Models**: Uses best-performing models from MTEB leaderboard
+- **🐳 Docker Infrastructure**: Production-grade deployment with Milvus stack
+- **💬 Interactive Chat**: Conversational interface for legal research
+- **📊 Rich Terminal Interface**: Beautiful CLI with progress tracking and statistics
 
 ## 📋 Requirements
 
@@ -32,6 +44,8 @@ A comprehensive, production-grade system for scraping, processing, and searching
 - **RAM**: 8GB minimum, 16GB recommended
 - **GPU**: Optional, CUDA 11.8+ for acceleration
 - **OS**: Windows, macOS, or Linux
+- **Docker**: Optional, required for Legal RAG System (Milvus)
+- **Google Gemini API**: Required for Legal RAG System chat features
 
 ### Windows Prerequisites
 For Windows users, install Microsoft C++ Build Tools:
@@ -71,15 +85,42 @@ uv pip install -e .
 
 ```bash
 # Windows PowerShell:
-New-Item -ItemType Directory -Force -Path data\json, data\documents, data\db, logs, data\markdown_documents, data\vector_store
+New-Item -ItemType Directory -Force -Path data\json, data\documents, data\db, logs, data\markdown_documents, data\json_documents, data\vector_store, data\milvus, data\processed
 
 # macOS/Linux:
-mkdir -p data/{json,documents,db,markdown_documents,vector_store} logs
+mkdir -p data/{json,documents,db,markdown_documents,json_documents,vector_store,milvus,processed} logs
 ```
 
-## 📖 Quick Start
+### 4. Setup Legal RAG System (Optional)
 
-### 1. Scrape Documents
+```bash
+# Start Milvus services for production RAG
+docker-compose up -d
+
+# Configure environment for Legal RAG
+cp .env.example .env
+# Add your Google Gemini API key to .env:
+echo "GOOGLE_API_KEY=your_gemini_api_key_here" >> .env
+```
+
+## 📖 Quick Start Guide
+
+### Choose Your RAG System
+
+**ChromaDB RAG (Simple Setup)**
+- ✅ No Docker required
+- ✅ Fast setup for development
+- ✅ Good for small collections
+- ❌ No AI responses, search only
+
+**Legal RAG System (Production)**
+- ✅ Google Gemini AI responses
+- ✅ Hybrid search (dense + sparse)
+- ✅ Scalable Milvus database
+- ✅ Rich interactive chat
+- ❌ Requires Docker and API key
+
+### 1. Scrape Documents (Same for Both Systems)
 
 ```bash
 # Basic scraping (2020 to today)
@@ -92,40 +133,39 @@ python run.py --start-date 2024-01-01 --end-date 2024-12-31
 python run.py --workers 10
 ```
 
-### 2. Convert PDFs to Markdown
+### 2A. ChromaDB RAG System (Simple)
 
 ```bash
-# Process all PDFs
-python -m dawson_scraper.src.cli_rag process-pdfs
-
-# With more workers
+# Process all PDFs (creates both markdown and JSON)
 python -m dawson_scraper.src.cli_rag process-pdfs --workers 8
 
-# Enable Vision-Language Model for better accuracy
-python -m dawson_scraper.src.cli_rag process-pdfs --enable-vlm
-```
-
-### 3. Build Search Index
-
-```bash
 # Create vector index
 python -m dawson_scraper.src.cli_rag build-index
 
-# Update existing index
-python -m dawson_scraper.src.cli_rag build-index --incremental
+# Search documents
+python -m dawson_scraper.src.cli_rag search "capital gains tax" --top-k 10
 ```
 
-### 4. Search Documents
+### 2B. Legal RAG System (Production)
 
 ```bash
-# Basic search
-python -m dawson_scraper.src.cli_rag search "capital gains tax"
+# Start Milvus services
+docker-compose up -d
 
-# Search with filters
-python -m dawson_scraper.src.cli_rag search "medical expenses" --year 2023
+# Process PDFs with advanced Docling
+legal-rag process --input-dir data/documents --workers 8
 
-# Get more results
-python -m dawson_scraper.src.cli_rag search "partnership" --top-k 10
+# Build production vector index
+legal-rag index --recreate
+
+# Search with AI responses
+legal-rag search "capital gains tax treatment" --top-k 10
+
+# Interactive chat with Gemini
+legal-rag chat
+
+# Use embedded mode (no Docker)
+legal-rag search "tax deductions" --use-lite
 ```
 
 ## 📁 Project Structure
@@ -134,9 +174,10 @@ python -m dawson_scraper.src.cli_rag search "partnership" --top-k 10
 web_scraper_legal/
 ├── run.py                      # Main scraper entry point
 ├── pyproject.toml              # Project configuration
+├── docker-compose.yml          # Milvus services for Legal RAG
 ├── .env                        # Environment variables (optional)
 │
-├── dawson_scraper/src/
+├── dawson_scraper/src/         # ChromaDB RAG System
 │   ├── scraper.py             # Document scraping orchestration
 │   ├── api_client.py          # Dawson API client
 │   ├── downloader.py          # Parallel download manager
@@ -146,15 +187,64 @@ web_scraper_legal/
 │   ├── rag_system.py          # LlamaIndex RAG implementation
 │   └── cli_rag.py             # RAG system CLI
 │
+├── legal_rag/src/              # Legal RAG System (Production)
+│   ├── config.py              # Milvus and Gemini configuration
+│   ├── milvus_manager.py       # Milvus vector operations
+│   ├── docling_processor.py    # Advanced PDF processing
+│   ├── embedding_manager.py    # Multi-model embeddings
+│   ├── advanced_rag_system.py  # Production RAG orchestration
+│   └── cli.py                 # Rich terminal interface
+│
 ├── data/
 │   ├── json/                  # API metadata files
 │   ├── documents/             # Downloaded PDFs (YYYY-MM/)
 │   ├── markdown_documents/    # Converted markdown files
+│   ├── json_documents/        # Docling JSON documents (complete structure)
+│   ├── processed/             # Legal RAG processed documents
 │   ├── vector_store/          # ChromaDB vector database
+│   ├── milvus/                # Milvus data directory
 │   ├── processing_stats/      # Processing tracking
 │   └── db/                    # SQLite databases
 │
+├── specs/                      # Project documentation
+│   ├── project_overview.md    # High-level summary
+│   ├── tech_stack.md          # Technology stack
+│   ├── project_structure.md   # Directory structure
+│   ├── module_overview.md     # Module responsibilities
+│   ├── setup_guide.md         # Setup instructions
+│   ├── api_contracts.md       # API documentation
+│   └── database_schema.md     # Database schemas
+│
 └── logs/                      # Application logs
+```
+
+## 📊 Document Export Formats
+
+The system exports processed documents in **two formats** to support different research needs:
+
+### Markdown Format (data/markdown_documents/)
+- **Purpose**: Optimized for RAG, search indexing, and text analysis
+- **Size**: Compact (typically 8-50KB per document)
+- **Content**: Clean text with basic structure preservation
+- **Use Cases**: Semantic search, LLM processing, content analysis
+
+### Docling JSON Format (data/json_documents/)
+- **Purpose**: Complete document structure preservation
+- **Size**: Comprehensive (typically 2-10MB per document)
+- **Content**: Full document hierarchy, tables, images, metadata
+- **Use Cases**: Document analysis, table extraction, layout-aware processing
+
+### Key Benefits
+- **Simultaneous Export**: Both formats created in single processing run
+- **No Performance Penalty**: Dual export optimized for efficiency
+- **Format Selection**: Choose appropriate format for your analysis needs
+- **Rich Metadata**: Processing statistics and document information included
+
+### Example Structure
+```
+data/documents/2024-01/case_123.pdf         # Original (PDF, 800KB)
+data/markdown_documents/2024-01/case_123.md # Clean text (MD, 15KB) 
+data/json_documents/2024-01/case_123.json   # Full structure (JSON, 3.2MB)
 ```
 
 ## ⚙️ Configuration
@@ -163,32 +253,73 @@ Create a `.env` file for custom settings (optional):
 
 ```bash
 # .env file example
+
+# Scraping Configuration
 PARALLEL_WORKERS=5           # Number of concurrent downloads (1-20)
 START_DATE=2020-01-01        # Beginning of scrape period
 END_DATE=2024-12-31          # End of scrape period
 DOWNLOAD_PDFS=true           # Enable/disable PDF downloads
 SKIP_EXISTING=true           # Skip already-downloaded files
 RATE_LIMIT_DELAY=0.2         # Delay between requests per worker
+
+# Legal RAG System Configuration
+GOOGLE_API_KEY=your_gemini_key    # Required for Gemini LLM
+GEMINI_MODEL=gemini-1.5-flash     # Gemini model version
+MILVUS_HOST=localhost             # Milvus server host
+MILVUS_PORT=19530                 # Milvus server port
+MILVUS_COLLECTION=tax_court_docs  # Collection name
+
+# Embedding Configuration
+EMBEDDING_MODEL=intfloat/e5-large-v2  # HuggingFace embedding model
+RAG_BATCH_SIZE=100                     # Processing batch size
+RAG_MAX_WORKERS=8                      # Max workers for RAG
+CHUNK_SIZE=512                         # Text chunk size
+CHUNK_OVERLAP=50                       # Chunk overlap
 ```
 
 Or use command-line arguments to override defaults.
 
 ## 📖 Usage
 
-### Basic Usage
+### ChromaDB RAG Usage
 
 ```bash
 # Full scrape with PDFs (2020 to today)
 python run.py
 
-# Custom date range
-python run.py --start-date 2024-01-01 --end-date 2024-12-31
+# Process PDFs to markdown and JSON
+python -m dawson_scraper.src.cli_rag process-pdfs --workers 8
 
-# More parallel workers for faster downloads
-python run.py --workers 10
+# Build search index
+python -m dawson_scraper.src.cli_rag build-index
 
-# JSON only (no PDFs)
-python run.py --no-pdfs
+# Search documents
+python -m dawson_scraper.src.cli_rag search "capital gains tax"
+```
+
+### Legal RAG System Usage
+
+```bash
+# Start Milvus services
+docker-compose up -d
+
+# Process documents
+legal-rag process --workers 8
+
+# Build index
+legal-rag index --recreate
+
+# Search with AI responses
+legal-rag search "capital gains tax" --top-k 10
+
+# Interactive chat
+legal-rag chat
+
+# System statistics
+legal-rag stats
+
+# Quick help
+legal-rag quickstart
 ```
 
 ### Advanced Operations
@@ -209,8 +340,8 @@ python run.py --verify
 
 ### Command-Line Options
 
+#### Scraper Options (run.py)
 ```bash
-Options:
   --start-date DATE    Start date (YYYY-MM-DD)
   --end-date DATE      End date (YYYY-MM-DD)
   --workers N          Number of parallel workers (1-20)
@@ -220,6 +351,36 @@ Options:
   --stats             Show statistics
   --verify            Verify all downloads
   --help              Show help message
+```
+
+#### Legal RAG Options (legal-rag)
+```bash
+legal-rag process
+  --input-dir DIR      Input directory with PDFs
+  --pattern PATTERN    File pattern to match
+  --skip-existing      Skip already processed files
+  --workers N          Number of parallel workers
+
+legal-rag index
+  --documents-dir DIR  Directory with processed docs
+  --recreate          Recreate Milvus collection
+  --use-lite          Use embedded Milvus
+
+legal-rag search QUERY
+  --top-k N           Number of results
+  --year YEAR         Filter by year
+  --month MONTH       Filter by month
+  --judge JUDGE       Filter by judge name
+  --docket DOCKET     Filter by docket number
+  --hybrid/--no-hybrid Use hybrid search
+  --json-output       Output as JSON
+  --use-lite          Use embedded Milvus
+
+legal-rag chat
+  --use-lite          Use embedded Milvus
+
+legal-rag stats
+  --use-lite          Use embedded Milvus
 ```
 
 ## 📊 Performance
@@ -270,6 +431,33 @@ Expected performance with default settings:
 - Run `--resume` to retry failures
 - Check logs for specific errors
 
+### Legal RAG System Issues
+
+**Milvus connection failed**
+```bash
+# Check Docker services
+docker ps
+
+# View Milvus logs
+docker logs milvus-standalone
+
+# Restart services
+docker-compose restart
+
+# Use embedded mode as fallback
+legal-rag search "query" --use-lite
+```
+
+**Gemini API errors**
+- Verify `GOOGLE_API_KEY` in `.env`
+- Check API quota and billing
+- Use search without chat for basic functionality
+
+**Embedding model download issues**
+- Ensure internet connectivity
+- Clear HuggingFace cache: `rm -rf ~/.cache/huggingface`
+- Use smaller model: `EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2`
+
 ### Recovery Options
 
 ```bash
@@ -285,10 +473,11 @@ python run.py --verify
 
 ## 📈 Database Schema
 
-The SQLite database tracks:
+### SQLite Databases
 
 - **downloads**: Document download status and metadata
 - **searches**: Monthly search operations and results
+- **pdf_processing**: PDF conversion tracking
 
 Query the database:
 
@@ -304,6 +493,19 @@ GROUP BY status;
 SELECT docket_number, error_message 
 FROM downloads 
 WHERE status = 'failed';
+```
+
+### Vector Databases
+
+**ChromaDB**: Embedded vector storage in `data/vector_store/`
+
+**Milvus**: Production vector database with web UI
+```bash
+# Access Attu web interface
+open http://localhost:8000
+
+# View collections and statistics
+docker exec milvus-standalone milvus_cli
 ```
 
 ## 🛠️ Development
@@ -331,21 +533,35 @@ The modular architecture makes it easy to extend:
 
 ## 📝 API Reference
 
-### Main Classes
+### ChromaDB RAG Classes
 
 **DawsonScraper**
 - `run()`: Main scraping orchestration
 - `resume_interrupted()`: Resume failed downloads
 - `process_existing_json()`: Download PDFs from JSON
 
-**APIClient**
-- `fetch_opinions()`: Get opinions for date range
-- `get_document_url()`: Get PDF download URL
-- `download_file()`: Download with progress
+**TaxCourtRAGSystem**
+- `build_index()`: Create vector index from documents
+- `search()`: Semantic search with filters
+- `add_documents()`: Add new documents to index
 
-**ParallelDownloader**
-- `download_opinions()`: Parallel download manager
-- `retry_failed_downloads()`: Retry failures
+### Legal RAG System Classes
+
+**AdvancedRAGSystem**
+- `process_documents()`: Process PDFs with Docling
+- `build_index()`: Create Milvus vector index
+- `search()`: Hybrid search with AI responses
+- `chat()`: Interactive conversation interface
+
+**MilvusManager**
+- `create_collection()`: Setup vector database
+- `hybrid_search()`: Dense + sparse retrieval
+- `get_statistics()`: Collection metrics
+
+**EmbeddingManager**
+- `get_dense_embeddings()`: Transformer embeddings
+- `get_sparse_embeddings()`: BM25 sparse vectors
+- `setup_models()`: Model initialization
 
 ## 🔒 Security & Compliance
 
@@ -354,9 +570,17 @@ The modular architecture makes it easy to extend:
 - Connection pooling for efficient resource use
 - No authentication bypass or scraping of protected content
 
+## 🚀 CLI Tools
+
+The project provides three CLI entry points:
+
+1. **`dawson`** - Main scraper for downloading documents
+2. **`dawson-rag`** - ChromaDB RAG system for basic search
+3. **`legal-rag`** - Production RAG system with Milvus and Gemini
+
 ## 📄 License
 
-This project is for educational and research purposes. Ensure compliance with the US Tax Court's terms of service when using this tool.
+This project is for educational and research purposes. Ensure compliance with the US Tax Court's terms of service and Google's API terms when using this tool.
 
 ## 🤝 Contributing
 
