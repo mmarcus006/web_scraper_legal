@@ -34,6 +34,20 @@ def setup_environment():
     # Configure logging levels for production use
     os.environ['DOCLING_LOG_LEVEL'] = 'INFO'
     os.environ['TRANSFORMERS_VERBOSITY'] = 'error'  # Reduce transformer noise
+    
+    # CUDA stability settings for GPU processing
+    try:
+        import torch
+        if torch.cuda.is_available():
+            # Enable synchronous CUDA operations for debugging
+            os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+            # Optimize memory allocation to prevent fragmentation
+            os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:512'
+            # Ensure deterministic operations for reproducibility
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+    except ImportError:
+        pass  # PyTorch not available or CPU-only version
 
 
 def setup_logging(log_level: str = "INFO") -> logging.Logger:

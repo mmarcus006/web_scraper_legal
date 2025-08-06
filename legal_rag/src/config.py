@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     
     # Google Gemini Configuration
     google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
-    gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
     
     # Milvus Configuration
     milvus_host: str = Field(default="localhost", alias="MILVUS_HOST")
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     enable_ocr: bool = Field(default=True, alias="ENABLE_OCR")
     enable_tables: bool = Field(default=True, alias="ENABLE_TABLES")
     enable_formulas: bool = Field(default=True, alias="ENABLE_FORMULAS")
-    enable_vlm: bool = Field(default=False, alias="ENABLE_VLM")
+    enable_vlm: bool = Field(default=True, alias="ENABLE_VLM")
     
     # Paths
     data_dir: Path = Field(default=Path("./data"), alias="DATA_DIR")

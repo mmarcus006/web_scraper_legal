@@ -185,7 +185,18 @@ class BatchPDFProcessor:
         self.output_dir = Path(output_dir)
         self.json_output_dir = Path(json_output_dir)
         self.db_path = Path(db_path)
-        self.max_workers = max_workers
+        
+        # Auto-detect GPU and limit workers to prevent CUDA conflicts
+        from .pdf_pipeline import get_device, AcceleratorDevice
+        if get_device() == AcceleratorDevice.CUDA:
+            self.max_workers = 1
+            # Will log after logger is initialized
+            self._gpu_detected = True
+            self._requested_workers = max_workers
+        else:
+            self.max_workers = max_workers
+            self._gpu_detected = False
+            
         self.enable_ocr = enable_ocr
         self.enable_table_structure = enable_table_structure
         self.enable_vlm = enable_vlm
@@ -199,6 +210,12 @@ class BatchPDFProcessor:
         # Setup logging
         from .pdf_pipeline import setup_logging
         self.logger = setup_logging("INFO")
+        
+        # Log GPU detection message
+        if self._gpu_detected:
+            self.logger.warning(f"GPU detected - limiting workers to 1 (requested: {self._requested_workers})")
+            self.logger.info("Using GPU acceleration for PDF processing")
+            self.logger.info("For parallel processing with multiple workers, disable GPU or use CPU mode")
     
     def get_pdf_files(self) -> List[Path]:
         """Get all PDF files from input directory.

@@ -1,0 +1,11 @@
+# GPU Configuration for Docling/PyTorch
+# Add these lines to your .env file to enable GPU acceleration
+
+# Force use of first GPU (0-indexed)
+CUDA_VISIBLE_DEVICES=0
+
+# Enable Vision-Language Model for better PDF processing accuracy
+ENABLE_VLM=true
+
+# Optional: Control GPU memory usage (in MB, useful if you have limited VRAM)
+# PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512

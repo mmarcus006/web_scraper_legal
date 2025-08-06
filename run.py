@@ -31,8 +31,16 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dawson_scraper.src.scraper import DawsonScraper
 from dawson_scraper.src.config import settings
 from dawson_scraper.src.database import db_manager
-from dawson_scraper.src.utils import get_logger, verify_pdf
+from dawson_scraper.src.utils import verify_pdf
 
+# Import the simple logging setup for Windows compatibility
+try:
+    from dawson_scraper.src.utils_logging_patch import setup_simple_logging, get_simple_logger
+    # Setup logging once at startup
+    setup_simple_logging(settings.log_dir)
+    get_logger = get_simple_logger
+except ImportError:
+    from dawson_scraper.src.utils import get_logger
 
 # Load environment variables
 load_dotenv()

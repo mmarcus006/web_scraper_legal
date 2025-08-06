@@ -41,13 +41,26 @@ def process_pdfs(ctx, input_dir, output_dir, json_output_dir, workers, skip_exis
     click.echo(f"Processing PDFs from {input_dir}")
     click.echo(f"  Markdown output: {output_dir}")
     click.echo(f"  JSON output: {json_output_dir}")
-    click.echo(f"Workers: {workers}, OCR: {enable_ocr}, Tables: {enable_tables}, VLM: {enable_vlm}")
+    
+    # Check if GPU is available and adjust workers
+    from dawson_scraper.src.pdf_pipeline import get_device, AcceleratorDevice
+    actual_workers = workers
+    if get_device() == AcceleratorDevice.CUDA:
+        actual_workers = 1
+        if workers > 1:
+            click.echo(f"[WARNING] GPU detected - overriding workers from {workers} to 1")
+            click.echo("[INFO] Single worker mode prevents CUDA conflicts")
+            click.echo("[TIP] For parallel processing, disable GPU or use CPU mode")
+        else:
+            click.echo("[INFO] Using GPU acceleration with 1 worker")
+    
+    click.echo(f"Workers: {actual_workers}, OCR: {enable_ocr}, Tables: {enable_tables}, VLM: {enable_vlm}")
     
     processor = BatchPDFProcessor(
         input_dir=input_dir,
         output_dir=output_dir,
         json_output_dir=json_output_dir,
-        max_workers=workers,
+        max_workers=actual_workers,
         enable_ocr=enable_ocr,
         enable_table_structure=enable_tables,
         enable_vlm=enable_vlm

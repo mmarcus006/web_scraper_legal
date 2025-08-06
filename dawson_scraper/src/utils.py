@@ -2,12 +2,18 @@
 
 import logging
 import sys
+import platform
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Tuple
 from logging.handlers import RotatingFileHandler
+import threading
 
 from .config import settings
+
+# Global lock for logger initialization
+_logger_lock = threading.Lock()
+_root_handlers_configured = False
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -20,37 +26,95 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         Configured logger
     """
-    logger = logging.getLogger(name)
+    global _root_handlers_configured
     
-    if not logger.handlers:
-        logger.setLevel(logging.DEBUG)
+    # For Windows, use a shared handler approach to avoid file locking issues
+    if platform.system() == 'Windows':
+        with _logger_lock:
+            if not _root_handlers_configured:
+                # Configure root logger once
+                root_logger = logging.getLogger()
+                root_logger.setLevel(logging.DEBUG)
+                
+                # Remove any existing handlers
+                for handler in root_logger.handlers[:]:
+                    root_logger.removeHandler(handler)
+                
+                # Console handler
+                console_handler = logging.StreamHandler(sys.stdout)
+                console_handler.setLevel(logging.INFO)
+                console_formatter = logging.Formatter(
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                    datefmt="%H:%M:%S"
+                )
+                console_handler.setFormatter(console_formatter)
+                root_logger.addHandler(console_handler)
+                
+                # File handler - use delay=True to open file only when needed
+                log_file = settings.log_dir / "dawson_scraper.log"
+                try:
+                    file_handler = RotatingFileHandler(
+                        log_file,
+                        maxBytes=10 * 1024 * 1024,  # 10MB
+                        backupCount=5,
+                        encoding="utf-8",
+                        delay=True  # Don't open file until first write
+                    )
+                    file_handler.setLevel(logging.DEBUG)
+                    file_formatter = logging.Formatter(
+                        "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+                    )
+                    file_handler.setFormatter(file_formatter)
+                    root_logger.addHandler(file_handler)
+                except PermissionError:
+                    # If we can't rotate, just use a regular file handler
+                    fallback_handler = logging.FileHandler(
+                        log_file,
+                        encoding="utf-8",
+                        mode='a'
+                    )
+                    fallback_handler.setLevel(logging.DEBUG)
+                    fallback_handler.setFormatter(file_formatter)
+                    root_logger.addHandler(fallback_handler)
+                
+                _root_handlers_configured = True
         
-        # Console handler
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)
-        console_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            datefmt="%H:%M:%S"
-        )
-        console_handler.setFormatter(console_formatter)
-        logger.addHandler(console_handler)
-        
-        # File handler with rotation
-        log_file = settings.log_dir / "dawson_scraper.log"
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5,
-            encoding="utf-8"
-        )
-        file_handler.setLevel(logging.DEBUG)
-        file_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
-        )
-        file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+        # Return child logger
+        return logging.getLogger(name)
     
-    return logger
+    else:
+        # For non-Windows systems, use the original approach
+        logger = logging.getLogger(name)
+        
+        if not logger.handlers:
+            logger.setLevel(logging.DEBUG)
+            
+            # Console handler
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setLevel(logging.INFO)
+            console_formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                datefmt="%H:%M:%S"
+            )
+            console_handler.setFormatter(console_formatter)
+            logger.addHandler(console_handler)
+            
+            # File handler with rotation
+            log_file = settings.log_dir / "dawson_scraper.log"
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10 * 1024 * 1024,  # 10MB
+                backupCount=5,
+                encoding="utf-8"
+            )
+            file_handler.setLevel(logging.DEBUG)
+            file_formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+            )
+            file_handler.setFormatter(file_formatter)
+            logger.addHandler(file_handler)
+        
+        return logger
 
 
 def generate_monthly_periods(

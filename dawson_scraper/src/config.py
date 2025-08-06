@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     
     # Date Range
     start_date: datetime = Field(
-        default_factory=lambda: datetime(2020, 1, 1),
+        default_factory=lambda: datetime(1940, 1, 1),
         description="Start date for scraping"
     )
     end_date: datetime = Field(
